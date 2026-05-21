@@ -10,7 +10,7 @@ WORKDIR /app
 # Copy package files trước để cache layer
 COPY package*.json ./ 
 
-# Dùng npm install thay vì npm ci (repo không có package-lock.json)
+# Dùng npm install 
 RUN npm install --omit=dev
 
 # Copy toàn bộ source code backend

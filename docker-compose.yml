@@ -10,7 +10,7 @@ services:
   mongo:
     image: mongo:5.0 # MongoDB 5.x khớp với mongoose ^5.10.6 trong package.json
     container_name: proshop-mongo
-    restart: unless-stopped
+    restart: unless-stopped # Tự động restart nếu container bị lỗi
     environment:
       MONGO_INITDB_DATABASE: proshop
     volumes:
@@ -19,6 +19,18 @@ services:
       - proshop-net
     # ⚠️  KHÔNG expose port 27017 ra host machine (bảo mật)
     #     Chỉ các container trong cùng network mới kết nối được
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5" # Giới hạn CPU tối đa 50%
+          memory: 512M # Giới hạn RAM tối đa 512MB
 
   # ─── 2. BACKEND ─────────────────────────────────────────────
   backend:
@@ -28,14 +40,10 @@ services:
     container_name: proshop-backend
     restart: unless-stopped
     depends_on:
-      - mongo # Đợi mongo khởi động trước
-    environment:
-      NODE_ENV: production
-      PORT: 5000
-      # Kết nối tới MongoDB qua tên service "mongo" trong Docker network
-      MONGO_URI: mongodb://mongo:27017/proshop
-      JWT_SECRET: your_super_secret_key_change_me
-      PAYPAL_CLIENT_ID: sb # Dùng sandbox khi test local
+      mongo:
+        condition: service_healthy # Đợi mongo sẵn sàng (healthcheck)
+    env_file:
+      - .env
     volumes:
       # Mount thư mục uploads ra ngoài để file upload không mất khi rebuild
       - uploads_data:/app/uploads
@@ -44,6 +52,12 @@ services:
     # ⚠️  KHÔNG expose port 5000 ra ngoài (frontend nginx sẽ proxy nội bộ)
     # ports:
     #   - "5000:5000"        # Bỏ comment dòng này chỉ khi cần debug trực tiếp
+
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5" # Giới hạn CPU tối đa 50%
+          memory: 256M # Giới hạn RAM tối đa 256MB
 
   # ─── 3. FRONTEND ────────────────────────────────────────────
   frontend:
@@ -58,6 +72,12 @@ services:
       - "3000:80" # Expose ra ngoài: truy cập http://localhost:3000
     networks:
       - proshop-net
+
+    deploy:
+      resources:
+        limits:
+          cpus: "0.3" # Giới hạn CPU tối đa 30%
+          memory: 128M # Giới hạn RAM tối đa 128MB
 
 # ─── VOLUMES ──────────────────────────────────────────────────
 volumes:
