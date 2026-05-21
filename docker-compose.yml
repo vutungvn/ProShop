@@ -1,0 +1,72 @@
+# ============================================================
+# docker-compose.yml
+# Đặt file này tại: thư mục GỐC của project (cùng cấp với /backend, /frontend)
+# ============================================================
+
+version: "3.9"
+
+services:
+  # ─── 1. DATABASE ────────────────────────────────────────────
+  mongo:
+    image: mongo:5.0 # MongoDB 5.x khớp với mongoose ^5.10.6 trong package.json
+    container_name: proshop-mongo
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_DATABASE: proshop
+    volumes:
+      - mongo_data:/data/db # Dữ liệu được persist, không mất khi restart
+    networks:
+      - proshop-net
+    # ⚠️  KHÔNG expose port 27017 ra host machine (bảo mật)
+    #     Chỉ các container trong cùng network mới kết nối được
+
+  # ─── 2. BACKEND ─────────────────────────────────────────────
+  backend:
+    build:
+      context: . # ← ROOT, nơi có package.json
+      dockerfile: backend/Dockerfile
+    container_name: proshop-backend
+    restart: unless-stopped
+    depends_on:
+      - mongo # Đợi mongo khởi động trước
+    environment:
+      NODE_ENV: production
+      PORT: 5000
+      # Kết nối tới MongoDB qua tên service "mongo" trong Docker network
+      MONGO_URI: mongodb://mongo:27017/proshop
+      JWT_SECRET: your_super_secret_key_change_me
+      PAYPAL_CLIENT_ID: sb # Dùng sandbox khi test local
+    volumes:
+      # Mount thư mục uploads ra ngoài để file upload không mất khi rebuild
+      - uploads_data:/app/uploads
+    networks:
+      - proshop-net
+    # ⚠️  KHÔNG expose port 5000 ra ngoài (frontend nginx sẽ proxy nội bộ)
+    # ports:
+    #   - "5000:5000"        # Bỏ comment dòng này chỉ khi cần debug trực tiếp
+
+  # ─── 3. FRONTEND ────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend # Docker build từ thư mục frontend/
+      dockerfile: Dockerfile
+    container_name: proshop-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend # Đợi backend sẵn sàng trước
+    ports:
+      - "3000:80" # Expose ra ngoài: truy cập http://localhost:3000
+    networks:
+      - proshop-net
+
+# ─── VOLUMES ──────────────────────────────────────────────────
+volumes:
+  mongo_data: # Persist dữ liệu MongoDB
+    driver: local
+  uploads_data: # Persist file upload của backend
+    driver: local
+
+# ─── NETWORK ──────────────────────────────────────────────────
+networks:
+  proshop-net:
+    driver: bridge # Mạng nội bộ, các service giao tiếp bằng tên service
