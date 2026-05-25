@@ -70,6 +70,10 @@ services:
       - backend # Đợi backend sẵn sàng trước
     ports:
       - "80:80" # Expose ra ngoài: truy cập http://localhost hoặc http://proshop-team-master-devops.duckdns.org
+      - "443:443" # ← thêm port HTTPS
+    volumes:
+      # Mount chứng chỉ SSL từ host vào container Nginx
+      - /etc/letsencrypt:/etc/letsencrypt:ro
     networks:
       - proshop-net
 
